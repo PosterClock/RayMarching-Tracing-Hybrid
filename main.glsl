@@ -1,3 +1,6 @@
+// Author:
+// Title:
+
 #ifdef GL_ES
 precision mediump float;
 #endif
@@ -23,8 +26,15 @@ float sdPlane( vec3 p)
 }
 
 
-float DE(vec3 pos){
-    return min(sdSphere(pos), sdPlane(pos));
+vec2 DE(vec3 pos){
+    float distSphere = sdSphere(pos);
+    float distPlane = sdPlane(pos);
+
+    if (distSphere < distPlane){
+        return vec2(distSphere, 1);
+    }
+
+    return vec2(distPlane, 2);
 }
 
 vec3 norm( in vec3 p ) // For GLSL / HLSL raymarching
@@ -32,10 +42,10 @@ vec3 norm( in vec3 p ) // For GLSL / HLSL raymarching
     const float h = 0.0001; // Small offset value
     const vec2 k = vec2(1.0, -1.0);
     
-    return normalize( k.xyy * DE( p + k.xyy*h ) + 
-                      k.yyx * DE( p + k.yyx*h ) + 
-                      k.yxy * DE( p + k.yxy*h ) + 
-                      k.xxx * DE( p + k.xxx*h ) );
+    return normalize( k.xyy * DE( p + k.xyy*h ).x + 
+                      k.yyx * DE( p + k.yyx*h ).x + 
+                      k.yxy * DE( p + k.yxy*h ).x + 
+                      k.xxx * DE( p + k.xxx*h ).x );
 }
 
 
@@ -48,27 +58,44 @@ void main() {
     vec3 color = vec3(0.0);
     float r = 0.0;
     
-    vec3 lightPosition = vec3(u_mouse.x/u_resolution.x*2.0-1.0, u_mouse.y/u_resolution.y*2.0-1.0, cos(u_time)*2.0);
-    vec3 lightColour = vec3(1.000,0.950,0.981);
+    vec3 lightPosition = vec3(sin(u_time)*2.0, 1, cos(u_time)*2.0);
+    vec3 lightColour = vec3(0.907,1.000,0.892);
     
     float distanceTravelled = 0.; 
     vec3 currentPosition;
-    vec3 intersectionPoint = vec3(0.566,0.905,0.244);
+    vec3 intersectionPoint =vec3(100000.0);
+    
     
     for (int i = 0; i<1000; i++){
         currentPosition = startPosition +rayDirection*r;
-        float d = DE(currentPosition);
+        vec2 d = DE(currentPosition);
         
         
-        if (d < HIT_EPSILON){
-            reflect(rayDirection, norm(currentPosition));
-            intersectionPoint = currentPosition;
-            break; 
+        if (d.x < HIT_EPSILON){
+            if (d.y == 2.){ // hit plane, easy reflection
+             reflect(rayDirection, norm(currentPosition));
+             intersectionPoint = currentPosition;
+            }
+            
+            else if (d.y == 1.){ // simulate glass
+                
+              if (d.x <= 0.0){ // inside
+               r+=(-d.x);    
+              }
+              else {
+               reflect(rayDirection, -norm(currentPosition));
+              }
+                
+            }
+        }
+        
+        if (distance(currentPosition, lightPosition) < HIT_EPSILON){
+            break;
         }
         
         
-        r+=d;
-        distanceTravelled += d;
+        r+=d.x;
+        distanceTravelled += d.x;
         
     }
  //   distance*=10.0;
